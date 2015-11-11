@@ -17,7 +17,7 @@ class Users {
       try 
       {
 /// TOKEN IS A PARAM VARIABLE
-///         if ($app->request->params('token') == 'xy') {
+///         if ($app->request->params('token') == $app->token) {
 /// TOKEN IS A HEADER VARIABLE
           if ($app->request->headers('token') == $app->token) { 
 

@@ -1,0 +1,14 @@
+{
+    "name": "turn/rest",
+    "description": "TurnServer Rest API",
+    "authors": [
+        {
+            "name": "Mihaly MESZAROS",
+            "email": "misi@niif.hu"
+        }
+    ],
+    "require": {
+        "slim/slim": "^2.6",
+        "zircote/swagger-php": "^2.0"
+    }
+}

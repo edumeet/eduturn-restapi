@@ -9,6 +9,8 @@
     ],
     "require": {
         "slim/slim": "^2.6",
-        "zircote/swagger-php": "^2.0"
+        "zircote/swagger-php": "^2.0",
+        "geoip/geoip": "~1.14",
+        "mjaschen/phpgeo": "^0.3.0"
     }
 }

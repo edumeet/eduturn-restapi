@@ -1,2 +1,3 @@
+src/lib/Db.php
 vendor/*
 composer.lock

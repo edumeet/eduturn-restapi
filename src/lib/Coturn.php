@@ -108,6 +108,11 @@ class Coturn {
          //connectdb
          $db = Db::Connection();
 
+         // response
+         $response=new ApiResponse();
+         $response->ttl=3600;
+         $response->username=time().":".$app->request->params('ufrag');
+
          //update not existing lat long in server table
          $sth = $db->prepare("SELECT id,ip FROM servers where latitude IS NULL OR longitude IS NULL");
          $sth->execute();
@@ -118,15 +123,35 @@ class Coturn {
             $sth2->execute();
          }
 
+         $uris=array();
+         //check if ip presents
+         if ($app->request->params('ip')){ 
+             //$app->request->params('ip');
+             //TODO: geoip code comes here
+             
+         } else {
+             $sth = $db->prepare("SELECT distinct ip FROM servers ORDER BY RAND() limit 2");
+             $sth->execute();
+             $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+             foreach ($result as $row => $columns) {
+                 //add turnserver
+                 $sth2 = $db->prepare("SELECT * FROM servers WHERE ip='".$columns["ip"]."'");
+                 $sth2->execute();
+                 $result2 = $sth2->fetchAll(PDO::FETCH_ASSOC);
+                 foreach ($result2 as $row2 => $columns2) {
+                    error_log(print_r($columns2,true));  
+                    $uri=$columns2["uri_schema"].':'.$columns2["ip"].':'.$columns2["port"].'?'.'transport='.$columns2["protocol"];
+                    array_push($uris,$uri);
+                 }
+              }
+         }
+
+         //implode uris
+         $response->uris=$uris;
          //check if realm presents
          if ($app->request->params('realm')){ 
              $realm=$app->request->params('realm');
          }
-
-         // response
-         $response=new ApiResponse();
-         $response->ttl=3600;
-         $response->username=time().":".$app->request->params('ufrag');
 
 
          $sth = $db->prepare("SELECT value FROM turn_secret where realm='$realm' limit 1");

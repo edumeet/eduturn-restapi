@@ -139,7 +139,6 @@ class Coturn {
                  $sth2->execute();
                  $result2 = $sth2->fetchAll(PDO::FETCH_ASSOC);
                  foreach ($result2 as $row2 => $columns2) {
-                    error_log(print_r($columns2,true));  
                     $uri=$columns2["uri_schema"].':'.$columns2["ip"].':'.$columns2["port"].'?'.'transport='.$columns2["protocol"];
                     array_push($uris,$uri);
                  }

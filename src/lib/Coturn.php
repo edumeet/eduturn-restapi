@@ -153,7 +153,7 @@ class Coturn {
          }
 
 
-         $sth = $db->prepare("SELECT value FROM turn_secret where realm='$realm' limit 1");
+         $sth = $db->prepare("SELECT value FROM turn_secret where realm='$realm' ORDER BY timestamp DESC limit 1");
          $sth->execute();
          $sharedsecret = $sth->fetchColumn();
          if($sharedsecret) {

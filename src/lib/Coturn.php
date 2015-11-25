@@ -157,7 +157,7 @@ class Coturn {
          $sth->execute();
          $sharedsecret = $sth->fetchColumn();
          if($sharedsecret) {
-            $response->password=hash_hmac("sha1",$response->username,$sharedsecret);
+            $response->password=base64_encode(hash_hmac("sha1",$response->username,$sharedsecret,true));
             $app->response->setStatus(200);
             $app->response()->headers->set('Content-Type', 'application/json');
             echo json_encode($response);

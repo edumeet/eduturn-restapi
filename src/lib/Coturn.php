@@ -110,8 +110,8 @@ class Coturn {
 
          // response
          $response=new ApiResponse();
-         $response->ttl=3600;
-         $response->username=time().":".$app->request->params('ufrag');
+         $response->ttl=86400;
+         $response->username=(time() - $response->ttl).":".$app->request->params('ufrag');
 
          //update not existing lat long in server table
          $sth = $db->prepare("SELECT id,ip FROM servers where latitude IS NULL OR longitude IS NULL");

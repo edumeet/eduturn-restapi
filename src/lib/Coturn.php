@@ -98,16 +98,20 @@ class Coturn {
 
       try 
       {
-         /// TOKEN IS A PARAM VARIABLE
-         if ($app->request->params('api_key') == $app->token) {
-         /// TOKEN IS A HEADER VARIABLE
-         //if ($app->request->headers('api_key') == $app->token) { 
-
 
 
          //connectdb
          $db = Db::Connection();
 
+         /// TOKEN IS A PARAM VARIABLE
+         $token=$app->request->params('api_key');
+         /// TOKEN IS A HEADER VARIABLE
+         //$app->request->headers('api_key')  
+         //TODO validate token:
+         $sth = $db->prepare("SELECT count(*) AS count FROM token where token='$token'");
+         $sth->execute();
+         $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+         if ($result[0]["count"]==1){
          // response
          $response=new ApiResponse();
          $response->ttl=86400;
@@ -168,13 +172,13 @@ class Coturn {
 
 
         } else {
-          $app->response->setStatus(404);
+          $app->response->setStatus(403);
           $app->response()->headers->set('Content-Type', 'application/json');
           echo '{"error":{"text": "Invalid api_key" }}';
         }
  
       } catch(PDOException $e) {
-          $app->response()->setStatus(404);
+          $app->response()->setStatus(500);
           $app->response()->headers->set('Content-Type', 'application/json');
           echo '{"error":{"text": "'. $e->getMessage() .'"}}';
       }

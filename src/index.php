@@ -9,7 +9,7 @@
  *         version="1.0",
  *         title="STUN TURN REST API",
  *         description="NIIF Intitute STUN TURN REST API pilot",
- *         @SWG\Contact(name="Mihály MÉSZÁROS", url="http://brain.lab.vvc.niif.hu/restapi"),
+ *         @SWG\Contact(name="Mihály MÉSZÁROS", url="https://brain.lab.vvc.niif.hu"),
  *     ),
  *     @SWG\Tag(
  *       name="rest api",

@@ -1,4 +1,6 @@
 <?php
+use Location\Coordinate;
+use Location\Distance\Vincenty;
 
 class Coturn {
     /**
@@ -98,7 +100,7 @@ class Coturn {
 
       try 
       {
-
+         define("MAXSERVERS", 10);
 
          //connectdb
          $db = Db::Connection();
@@ -130,11 +132,36 @@ class Coturn {
          $uris=array();
          //check if ip presents
          if ($app->request->params('ip')){ 
-             //$app->request->params('ip');
+             $location=$this->GetGeoIP ($app->request->params('ip'));
              //TODO: geoip code comes here
+             $client_coordinate = new Coordinate($location->latitude, $location->longitude); 
+
+
+             $sth = $db->prepare("SELECT id,latitude,longitude FROM servers");
+             $sth->execute();
+             $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+             foreach ($result as $row => $columns) {
+                 $server_coordinate = new Coordinate($columns['latitude'],$columns['longitude']);
+                 $servers[$columns['id']]=$client_coordinate->getDistance($server_coordinate, new Vincenty()); 
+             }
+             asort($servers);
+             $i=0;
+             foreach ($servers as $id => $distance) {
+                 $sth2 = $db->prepare("SELECT * FROM servers WHERE id='".$id."'");
+                 $sth2->execute();
+                 $result2 = $sth2->fetchAll(PDO::FETCH_ASSOC);
+                 foreach ($result2 as $row2 => $columns2) {
+                    $uri=$columns2["uri_schema"].':'.$columns2["ip"].':'.$columns2["port"].'?'.'transport='.$columns2["protocol"].'&distance='.$distance;
+                    array_push($uris,$uri);
+                 }
+                 $i++;
+ 		 if ($i>=MAXSERVERS){
+                     break;
+                 }
+             }
              
          } else {
-             $sth = $db->prepare("SELECT distinct ip FROM servers ORDER BY RAND() limit 2");
+             $sth = $db->prepare("SELECT distinct ip FROM servers ORDER BY RAND() limit MAXSERVERS");
              $sth->execute();
              $result = $sth->fetchAll(PDO::FETCH_ASSOC);
              foreach ($result as $row => $columns) {

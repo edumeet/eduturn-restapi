@@ -20,7 +20,7 @@
 
 
 require_once("../vendor/autoload.php");
-require_once("lib/Db.php");
+require_once("../../Db.php");
 require_once("lib/Coturn.php");
 require_once("lib/ApiResponse.php");
 

@@ -100,10 +100,10 @@ class Coturn {
 
       try 
       {
-         define("MAXSERVERS", 10);
+         define("MAXSERVERS", 2);
 
          //connectdb
-         $db = Db::Connection();
+         $db = Db::Connection("coturn-rest");
 
          /// TOKEN IS A PARAM VARIABLE
          $token=$app->request->params('api_key');
@@ -120,7 +120,7 @@ class Coturn {
          $response->username=(time() + $response->ttl).":".$app->request->params('ufrag');
 
          //update not existing lat long in server table
-         $sth = $db->prepare("SELECT id,ip FROM servers where latitude IS NULL OR longitude IS NULL");
+         $sth = $db->prepare("SELECT id,ip FROM ip where latitude IS NULL OR longitude IS NULL");
          $sth->execute();
          $result = $sth->fetchAll(PDO::FETCH_ASSOC);
          foreach ($result as $row => $columns) {
@@ -131,49 +131,44 @@ class Coturn {
 
          $uris=array();
          //check if ip presents
-         if ($app->request->params('ip')){ 
-             $location=$this->GetGeoIP ($app->request->params('ip'));
-             //TODO: geoip code comes here
+         if ($app->request->params('ip') && $location=$this->GetGeoIP ($app->request->params('ip'))){ 
+             //geoip distance
              $client_coordinate = new Coordinate($location->latitude, $location->longitude); 
 
 
-             $sth = $db->prepare("SELECT id,latitude,longitude FROM servers");
+             $sth = $db->prepare("SELECT id,latitude,longitude FROM ip");
              $sth->execute();
              $result = $sth->fetchAll(PDO::FETCH_ASSOC);
              foreach ($result as $row => $columns) {
                  $server_coordinate = new Coordinate($columns['latitude'],$columns['longitude']);
-                 $servers[$columns['id']]=$client_coordinate->getDistance($server_coordinate, new Vincenty()); 
+                 $ips[$columns['id']]=$client_coordinate->getDistance($server_coordinate, new Vincenty()); 
              }
-             asort($servers);
-             $i=0;
-             foreach ($servers as $id => $distance) {
-                 $sth2 = $db->prepare("SELECT * FROM servers WHERE id='".$id."'");
-                 $sth2->execute();
-                 $result2 = $sth2->fetchAll(PDO::FETCH_ASSOC);
-                 foreach ($result2 as $row2 => $columns2) {
-                    $uri=$columns2["uri_schema"].':'.$columns2["ip"].':'.$columns2["port"].'?'.'transport='.$columns2["protocol"].'&distance='.$distance;
-                    array_push($uris,$uri);
+             asort($ips);
+             $servers=array();
+             foreach ($ips as $id => $distance) {
+                 $sth = $db->prepare("SELECT server_id FROM ip WHERE id='".$id."'");
+                 $sth->execute();
+                 $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+                 foreach ($result as $row => $columns) {
+                    array_push($servers,$columns["server_id"]);
                  }
-                 $i++;
- 		 if ($i>=MAXSERVERS){
-                     break;
-                 }
-             }
+              }
+              for($i=0;$i < MAXSERVERS;$i++) {
+                  //add turnserver
+                  $this->serverURIs($db,$servers[$i],$uris);
+              }
+ 
+             
              
          } else {
-             $sth = $db->prepare("SELECT distinct ip FROM servers ORDER BY RAND() limit MAXSERVERS");
+             //default random servers
+             $sth = $db->prepare("SELECT id FROM server ORDER BY RAND() limit ".MAXSERVERS);
              $sth->execute();
              $result = $sth->fetchAll(PDO::FETCH_ASSOC);
              foreach ($result as $row => $columns) {
-                 //add turnserver
-                 $sth2 = $db->prepare("SELECT * FROM servers WHERE ip='".$columns["ip"]."'");
-                 $sth2->execute();
-                 $result2 = $sth2->fetchAll(PDO::FETCH_ASSOC);
-                 foreach ($result2 as $row2 => $columns2) {
-                    $uri=$columns2["uri_schema"].':'.$columns2["ip"].':'.$columns2["port"].'?'.'transport='.$columns2["protocol"];
-                    array_push($uris,$uri);
-                 }
-              }
+                 //add a turnserver
+                 $this->serverURIs($db,$columns["id"],$uris);
+             }
          }
 
          //implode uris
@@ -227,4 +222,13 @@ class Coturn {
       return $record;
     }
 
+    private function serverURIs(&$db,&$server_id,&$uris) {
+        $sth2 = $db->prepare("SELECT ip,port,protocol,uri_schema FROM ip left join service on ip.id=service.ip_id WHERE server_id='".$server_id."' ORDER BY ip.preference,service.preference");
+        $sth2->execute();
+        $result2 = $sth2->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($result2 as $row2 => $columns2) {
+            $uri=$columns2["uri_schema"].':'.$columns2["ip"].':'.$columns2["port"].'?'.'transport='.$columns2["protocol"];
+            array_push($uris,$uri);
+        }
+    }
 }

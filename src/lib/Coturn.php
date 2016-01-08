@@ -15,7 +15,7 @@ class Coturn {
      *         name="ufrag",
      *         required=false,
      *         type="string",
-     *         maxLength=25
+     *         maximum=25
      *     ),
      *     @SWG\Parameter(
      *         description="realm, the domain of the shared secret, default=lab.vvc.niif.hu",
@@ -23,7 +23,7 @@ class Coturn {
      *         name="realm",
      *         required=false,
      *         type="string",
-     *         maxLength=254,
+     *         maximum=254,
      *     ),
      *     @SWG\Parameter(
      *         description="client browser IPv4/IPv6 Address",
@@ -31,7 +31,7 @@ class Coturn {
      *         name="ip",
      *         required=false,
      *         type="string",
-     *         maxLength=45
+     *         maximum=45
      *     ),
      *     @SWG\Response(
      *       response="200",
@@ -59,7 +59,7 @@ class Coturn {
      *         name="ufrag",
      *         required=false,
      *         type="string",
-     *         maxLength=25
+     *         maximum=25
      *     ),
      *     @SWG\Parameter(
      *         description="realm, the domain of the shared secret, default=lab.vvc.niif.hu",
@@ -67,7 +67,7 @@ class Coturn {
      *         name="realm",
      *         required=false,
      *         type="string",
-     *         maxLength=254,
+     *         maximum=254,
      *     ),
      *     @SWG\Parameter(
      *         description="client browser IPv4/IPv6 Address",
@@ -75,7 +75,7 @@ class Coturn {
      *         name="ip",
      *         required=false,
      *         type="string",
-     *         maxLength=45
+     *         maximum=45
      *     ),
      *     @SWG\Response(
      *       response="200",

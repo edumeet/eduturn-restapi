@@ -125,7 +125,7 @@ class Coturn {
          $result = $sth->fetchAll(PDO::FETCH_ASSOC);
          foreach ($result as $row => $columns) {
             $location=$this->GetGeoIP($columns['ip']);
-            $sth2 = $db->prepare("UPDATE servers SET latitude=$location->latitude, longitude=$location->longitude WHERE id=$columns[id]");
+            $sth2 = $db->prepare("UPDATE ip SET latitude=$location->latitude, longitude=$location->longitude WHERE id=$columns[id]");
             $sth2->execute();
          }
 

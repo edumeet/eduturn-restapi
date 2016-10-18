@@ -1,6 +1,11 @@
 <?php
 use Location\Coordinate;
 use Location\Distance\Vincenty;
+         
+define("DEFAULTSERVERCOUNT", 2);
+define("DEFAULTURISCHEMALIST", "stun,turn,turns"); //stuns disabled because chrome 48.0.2564.116 has issue with it (Malformed URL)
+define("DEFAULTIPVERSIONLIST", "ipv4,ipv6");
+define("DEFAULTTRANSPORTLIST", "udp,tcp");
 
 class Coturn {
     /**
@@ -32,6 +37,42 @@ class Coturn {
      *         required=false,
      *         type="string",
      *         maximum=45
+     *     ),
+     *     @SWG\Parameter(
+     *         description="URI Schema: 'stun','stuns','turn','turns'",
+     *         in="query",
+     *         name="uri_schema",
+     *         required=false,
+     *         type="string",
+     *         default="stun,turn,turns",
+     *         enum={"stun","stuns","turn","turns","stun,stuns","stun,turn","stun,turns","stuns,turn","stuns,turns","turn,turns","stun,stuns,turn","stun,stuns,turns","stun,turn,turns","stuns,turn,turns","stun,stuns,turn,turns" }
+     *     ),
+     *     @SWG\Parameter(
+     *         description="Transport protocol: 'udp','tcp','sctp'",
+     *         in="query",
+     *         name="transport",
+     *         required=false,
+     *         type="string",
+     *         default="udp,tcp",
+     *         enum={"udp","tcp","sctp","udp,tcp","udp,sctp","tcp,sctp","udp,tcp,sctp"}
+     *     ),
+     *     @SWG\Parameter(
+     *         description="Internet Protocol version: 'ipv4','ipv6','ipv4,ipv6'",
+     *         in="query",
+     *         name="ip_ver",
+     *         required=false,
+     *         type="string",
+     *         default="ipv4,ipv6",
+     *         enum={"ipv4","ipv6","ipv4,ipv6"}
+     *     ),
+     *     @SWG\Parameter(
+     *         description="Maximum servers count in Response",
+     *         in="query",
+     *         name="servercount",
+     *         required=false,
+     *         type="integer",
+     *         maximum=4,
+     *         default="2"
      *     ),
      *     @SWG\Response(
      *       response="200",
@@ -77,6 +118,41 @@ class Coturn {
      *         type="string",
      *         maximum=45
      *     ),
+     *     @SWG\Parameter(
+     *         description="URI Schema: 'stun','stuns','turn','turns'",
+     *         in="query",
+     *         name="uri_schema",
+     *         required=false,
+     *         type="string",
+     *         default="stun,turn,turns",
+     *         enum={"stun","stuns","turn","turns","stun,stuns","stun,turn","stun,turns","stuns,turn","stuns,turns","turn,turns","stun,stuns,turn","stun,stuns,turns","stun,turn,turns","stuns,turn,turns","stun,stuns,turn,turns" }
+     *     ),
+     *     @SWG\Parameter(
+     *         description="Transport protocol: 'udp','tcp','sctp'",
+     *         in="query",
+     *         name="transport",
+     *         required=false,
+     *         type="string",
+     *         default="udp,tcp",
+     *         enum={"udp","tcp","sctp","udp,tcp","udp,sctp","tcp,sctp","udp,tcp,sctp"}
+     *     ),
+     *     @SWG\Parameter(
+     *         description="Internet Protocol version: 'ipv4','ipv6','ipv4,ipv6'",
+     *         in="query",
+     *         name="ip_ver",
+     *         required=false,
+     *         type="string",
+     *         default="ipv4,ipv6",
+     *         enum={"ipv4","ipv6","ipv4,ipv6"}
+     *     ),
+     *     @SWG\Parameter(
+     *         description="Maximum servers count in Response",
+     *         in="query",
+     *         name="servercount",
+     *         required=false,
+     *         type="integer",
+     *         maximum=4
+     *     ),
      *     @SWG\Response(
      *       response="200",
      *       description="STUN time limited credentials",
@@ -100,16 +176,21 @@ class Coturn {
 
       try 
       {
-         define("MAXSERVERS", 2);
-
+         $servercount=$app->request->params('servercount');
+         if (is_numeric($servercount)){ 
+             settype($servercount,"integer");
+         }
+         if( !is_int($servercount) || $servercount < 1 ){
+             $servercount=DEFAULTSERVERCOUNT;
+         }
+ 
          //connectdb
          $db = Db::Connection("coturn-rest");
 
          /// TOKEN IS A PARAM VARIABLE
          $token=$app->request->params('api_key');
-         /// TOKEN IS A HEADER VARIABLE
-         //$app->request->headers('api_key')  
-         //TODO validate token:
+
+         //validate token
          $sth = $db->prepare("SELECT count(*) AS count FROM token where token='$token'");
          $sth->execute();
          $result = $sth->fetchAll(PDO::FETCH_ASSOC);
@@ -119,9 +200,9 @@ class Coturn {
          $response->ttl=86400;
          // if ufrag
          if(empty($app->request->params('ufrag'))){
-              $response->username=(time() + $response->ttl);
+              $response->username=(string)(time() + $response->ttl);
          } else {
-              $response->username=(time() + $response->ttl).":".$app->request->params('ufrag');
+              $response->username=(string)(time() + $response->ttl).":".$app->request->params('ufrag');
          }
 
          //update not existing lat long in server table
@@ -158,21 +239,22 @@ class Coturn {
                     array_push($servers,$columns["server_id"]);
                  }
               }
-              for($i=0;$i < MAXSERVERS;$i++) {
+              for($i=0;$i < $servercount;$i++) {
                   //add turnserver
-                  $this->serverURIs($db,$servers[$i],$uris);
+                  $this->serverURIs($db,$servers[$i],$uris,$app);
               }
  
              
              
          } else {
              //default random servers
-             $sth = $db->prepare("SELECT id FROM server ORDER BY RAND() limit ".MAXSERVERS);
+             $sth = $db->prepare("SELECT id FROM server ORDER BY RAND() limit :servercount");
+             $sth->bindParam(':servercount', $servercount, PDO::PARAM_INT);
              $sth->execute();
              $result = $sth->fetchAll(PDO::FETCH_ASSOC);
              foreach ($result as $row => $columns) {
                  //add a turnserver
-                 $this->serverURIs($db,$columns["id"],$uris);
+                 $this->serverURIs($db,$columns["id"],$uris,$app);
              }
          }
 
@@ -227,12 +309,126 @@ class Coturn {
       return $record;
     }
 
-    private function serverURIs(&$db,&$server_id,&$uris) {
-        $sth2 = $db->prepare("SELECT ip,port,protocol,uri_schema FROM ip left join service on ip.id=service.ip_id WHERE server_id='".$server_id."' ORDER BY ip.preference,service.preference");
+    private function serverURIs(&$db,&$server_id,&$uris,&$app) {
+        //transport portnumber
+        $transport_ports=$app->request->params('transport_port');
+        $transport_port=$app->request->params('transport_port');
+
+        //transport protocol
+        $transports=$app->request->params('transport');
+
+        $transportsql="";
+
+        //if no praram set use default list 
+        if( isset($transports) ){
+             $transportsarray=explode(",",$transports);
+        } else {
+             $transportsarray=explode(",",DEFAULTTRANSPORTLIST);
+        } 
+       
+        $i=0;
+        $transportsql.="and (";
+        foreach($transportsarray as $transport) {
+            $i++;
+            if($i>1) $transportsql.=" or ";
+            switch($transport){
+                case 'udp':
+                    $transportsql.='protocol="udp"';
+                    break;
+                 case 'tcp':
+                    $transportsql.='protocol="tcp"';
+                    break;
+                 case 'sctp':
+                    $transportsql.='protocol="sctp"';
+                    break;
+                 default:
+                    $app->response->setStatus(400);
+                    $app->response()->headers->set('Content-Type', 'application/json');
+                    echo '{"error":{"text": "Invalid transport protocol srting in transport paramter list! Only "udp", "tcp", "sctp" is allowed." }}';
+                    exit;
+            }
+        }
+        $transportsql.=")";
+        error_log($transportsql);    
+
+
+         //ip version
+        $ipversions=$app->request->params('ip_ver');
+
+        $ipversionsql="";
+
+        //if no praram set use default list 
+        if( isset($ipversions) ){
+             $ipversionsarray=explode(",",$ipversions);
+        } else {
+             $ipversionsarray=explode(",",DEFAULTIPVERSIONLIST);
+        } 
+       
+        $i=0;
+        $ipversionsql.="and (";
+         foreach($ipversionsarray as $ipversion) {
+            $i++;
+            if($i>1) $ipversionsql.=" or ";
+            switch($ipversion){
+                case 'ipv4':
+                    $ipversionsql.="ipv6=0";
+                    break;
+                 case 'ipv6':
+                    $ipversionsql.="ipv6=1";
+                    break;
+                default:
+                    $app->response->setStatus(400);
+                    $app->response()->headers->set('Content-Type', 'application/json');
+                    echo '{"error":{"text": "Invalid ip version srting in ip_ver paramter list! Only "ipv4", "ipv6" is allowed." }}';
+                    exit;
+            }
+        }
+        $ipversionsql.=")";
+        error_log($ipversionsql);    
+
+ 
+        //uri schema param
+        $urischemas=$app->request->params('uri_schema');
+
+        $urischemassql="";
+         //if no praram set use default list 
+        if(isset($urischemas)){
+            $urischemasarray=explode(",",$urischemas);
+        } else {
+            $urischemasarray=explode(",",DEFAULTURISCHEMALIST);
+         }
+        
+         $i=0;
+         $urischemassql.="and (";
+          foreach($urischemasarray as $uri_schema) {
+             $i++;
+             if($i>1) $urischemassql.=" or ";
+             switch($uri_schema){
+                 case 'stun':
+                 case 'stuns':
+                 case 'turn':
+                 case 'turns':
+                     $urischemassql.="uri_schema ='".$uri_schema."'";
+                     break;
+                 default:
+                     $app->response->setStatus(400);
+                     $app->response()->headers->set('Content-Type', 'application/json');
+                     echo '{"error":{"text": "Invalid uri_schema value in uri_schema list! Only "stun", "stuns", "turn", "turns" is allowed." }}';
+                     exit;
+             }
+         }
+         $urischemassql.=")";
+         error_log($urischemassql);    
+
+        $sth2 = $db->prepare("SELECT ip,ipv6,port,protocol,uri_schema FROM ip left join service on ip.id=service.ip_id WHERE server_id='".$server_id."'".$urischemassql.$ipversionsql.$transportsql." ORDER BY ip.preference,service.preference");
         $sth2->execute();
         $result2 = $sth2->fetchAll(PDO::FETCH_ASSOC);
         foreach ($result2 as $row2 => $columns2) {
-            $uri=$columns2["uri_schema"].':'.$columns2["ip"].':'.$columns2["port"].'?'.'transport='.$columns2["protocol"];
+            if($columns2["ipv6"]){
+                $uri=$columns2["uri_schema"].':['.$columns2["ip"].']:'.$columns2["port"].'?'.'transport='.$columns2["protocol"];
+            } else {
+                $uri=$columns2["uri_schema"].':'.$columns2["ip"].':'.$columns2["port"].'?'.'transport='.$columns2["protocol"];
+            }
             array_push($uris,$uri);
         }
     }

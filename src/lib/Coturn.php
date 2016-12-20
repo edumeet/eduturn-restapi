@@ -1,7 +1,7 @@
 <?php
 use Location\Coordinate;
 use Location\Distance\Vincenty;
-         
+        
 define("DEFAULTSERVERCOUNT", 2);
 define("DEFAULTURISCHEMALIST", "stun,turn,turns"); //stuns disabled because chrome 48.0.2564.116 has issue with it (Malformed URL)
 define("DEFAULTIPVERSIONLIST", "ipv4,ipv6");
@@ -174,118 +174,117 @@ class Coturn {
       //default realm
       $realm="lab.vvc.niif.hu";
 
-      try 
-      {
-         $servercount=$app->request->params('servercount');
-         if (is_numeric($servercount)){ 
-             settype($servercount,"integer");
-         }
-         if( !is_int($servercount) || $servercount < 1 ){
-             $servercount=DEFAULTSERVERCOUNT;
-         }
- 
-         //connectdb
-         $db = Db::Connection("coturn-rest");
+      try {
+          $servercount=$app->request->params('servercount');
+          if (is_numeric($servercount)){
+              settype($servercount,"integer");
+          }
+          if( !is_int($servercount) || $servercount < 1 ){
+              $servercount=DEFAULTSERVERCOUNT;
+          }
 
-         /// TOKEN IS A PARAM VARIABLE
-         $token=$app->request->params('api_key');
+          //connectdb
+          $db = Db::Connection("coturn-rest");
 
-         //validate token
-         $sth = $db->prepare("SELECT count(*) AS count FROM token where token='$token'");
-         $sth->execute();
-         $result = $sth->fetchAll(PDO::FETCH_ASSOC);
-         if ($result[0]["count"]==1){
-         // response
-         $response=new ApiResponse();
-         $response->ttl=86400;
-         // if ufrag
-         if(empty($app->request->params('ufrag'))){
-              $response->username=(string)(time() + $response->ttl);
-         } else {
-              $response->username=(string)(time() + $response->ttl).":".$app->request->params('ufrag');
-         }
+          /// TOKEN IS A PARAM VARIABLE
+          $token=$app->request->params('api_key');
 
-         //update not existing lat long in server table
-         $sth = $db->prepare("SELECT id,ip FROM ip where latitude IS NULL OR longitude IS NULL");
-         $sth->execute();
-         $result = $sth->fetchAll(PDO::FETCH_ASSOC);
-         foreach ($result as $row => $columns) {
-            $location=$this->GetGeoIP($columns['ip']);
-            $sth2 = $db->prepare("UPDATE ip SET latitude=$location->latitude, longitude=$location->longitude WHERE id=$columns[id]");
-            $sth2->execute();
-         }
+          //validate token
+          $sth = $db->prepare("SELECT count(*) AS count FROM token where token='$token'");
+          $sth->execute();
+          $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+          if ($result[0]["count"]==1){
+          // response
+          $response=new ApiResponse();
+          $response->ttl=86400;
+          // if ufrag
+          if(empty($app->request->params('ufrag'))){
+               $response->username=(string)(time() + $response->ttl);
+          } else {
+               $response->username=(string)(time() + $response->ttl).":".$app->request->params('ufrag');
+          }
 
-         $uris=array();
-         //check if ip presents
-         if ($app->request->params('ip') && $location=$this->GetGeoIP ($app->request->params('ip'))){ 
-             //geoip distance
-             $client_coordinate = new Coordinate($location->latitude, $location->longitude); 
+          //update not existing lat long in server table
+          $sth = $db->prepare("SELECT id,ip FROM ip where latitude IS NULL OR longitude IS NULL");
+          $sth->execute();
+          $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+          foreach ($result as $row => $columns) {
+             $location=$this->GetGeoIP($columns['ip']);
+             $sth2 = $db->prepare("UPDATE ip SET latitude=$location->latitude, longitude=$location->longitude WHERE id=$columns[id]");
+             $sth2->execute();
+          }
+
+          $uris=array();
+          //check if ip presents
+          if ($app->request->params('ip') && $location=$this->GetGeoIP ($app->request->params('ip'))){
+              //geoip distance
+              $client_coordinate = new Coordinate($location->latitude, $location->longitude);
 
 
-             $sth = $db->prepare("SELECT id,latitude,longitude FROM ip");
-             $sth->execute();
-             $result = $sth->fetchAll(PDO::FETCH_ASSOC);
-             foreach ($result as $row => $columns) {
-                 $server_coordinate = new Coordinate($columns['latitude'],$columns['longitude']);
-                 $ips[$columns['id']]=$client_coordinate->getDistance($server_coordinate, new Vincenty()); 
-             }
-             asort($ips);
-             $servers=array();
-             foreach ($ips as $id => $distance) {
-                 $sth = $db->prepare("SELECT server_id FROM ip WHERE id='".$id."'");
-                 $sth->execute();
-                 $result = $sth->fetchAll(PDO::FETCH_ASSOC);
-                 foreach ($result as $row => $columns) {
-                    array_push($servers,$columns["server_id"]);
-                 }
+              $sth = $db->prepare("SELECT id,latitude,longitude FROM ip group by server_id");
+              $sth->execute();
+              $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+              foreach ($result as $row => $columns) {
+                  $server_coordinate = new Coordinate($columns['latitude'],$columns['longitude']);
+                  $ips[$columns['id']]=$client_coordinate->getDistance($server_coordinate, new Vincenty());
               }
+              asort($ips);
+              $servers=array();
+              foreach ($ips as $id => $distance) {
+                  $sth = $db->prepare("SELECT server_id FROM ip WHERE id='".$id."'");
+                  $sth->execute();
+                  $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+                  foreach ($result as $row => $columns) {
+                     array_push($servers,$columns["server_id"]);
+                  }
+              }
+
               for($i=0;$i < $servercount;$i++) {
                   //add turnserver
                   $this->serverURIs($db,$servers[$i],$uris,$app);
               }
- 
-             
-             
+
+
+          } else {
+              //default random servers
+              $sth = $db->prepare("SELECT id FROM server ORDER BY RAND() limit :servercount");
+              $sth->bindParam(':servercount', $servercount, PDO::PARAM_INT);
+              $sth->execute();
+              $result = $sth->fetchAll(PDO::FETCH_ASSOC);
+              foreach ($result as $row => $columns) {
+                  //add a turnserver
+                  $this->serverURIs($db,$columns["id"],$uris,$app);
+              }
+          }
+
+          //implode uris
+          $response->uris=$uris;
+          //check if realm presents
+          if ($app->request->params('realm')){
+              $realm=$app->request->params('realm');
+          }
+
+
+          $sth = $db->prepare("SELECT value FROM turn_secret where realm='$realm' ORDER BY timestamp DESC limit 1");
+          $sth->execute();
+          $sharedsecret = $sth->fetchColumn();
+          if($sharedsecret) {
+              $response->password=base64_encode(hash_hmac("sha1",$response->username,$sharedsecret,true));
+              $app->response->setStatus(200);
+              $app->response()->headers->set('Content-Type', 'application/json');
+              echo json_encode($response);
+              $db = null;
+          } else {
+              throw new PDOException('No records found.');
+          }
+
+
          } else {
-             //default random servers
-             $sth = $db->prepare("SELECT id FROM server ORDER BY RAND() limit :servercount");
-             $sth->bindParam(':servercount', $servercount, PDO::PARAM_INT);
-             $sth->execute();
-             $result = $sth->fetchAll(PDO::FETCH_ASSOC);
-             foreach ($result as $row => $columns) {
-                 //add a turnserver
-                 $this->serverURIs($db,$columns["id"],$uris,$app);
-             }
+           $app->response->setStatus(403);
+           $app->response()->headers->set('Content-Type', 'application/json');
+           echo '{"error":{"text": "Invalid api_key" }}';
          }
 
-         //implode uris
-         $response->uris=$uris;
-         //check if realm presents
-         if ($app->request->params('realm')){ 
-             $realm=$app->request->params('realm');
-         }
-
-
-         $sth = $db->prepare("SELECT value FROM turn_secret where realm='$realm' ORDER BY timestamp DESC limit 1");
-         $sth->execute();
-         $sharedsecret = $sth->fetchColumn();
-         if($sharedsecret) {
-            $response->password=base64_encode(hash_hmac("sha1",$response->username,$sharedsecret,true));
-            $app->response->setStatus(200);
-            $app->response()->headers->set('Content-Type', 'application/json');
-            echo json_encode($response);
-            $db = null;
-         } else {
-             throw new PDOException('No records found.');
-         }
-
-
-        } else {
-          $app->response->setStatus(403);
-          $app->response()->headers->set('Content-Type', 'application/json');
-          echo '{"error":{"text": "Invalid api_key" }}';
-        }
- 
       } catch(PDOException $e) {
           $app->response()->setStatus(500);
           $app->response()->headers->set('Content-Type', 'application/json');
@@ -319,13 +318,13 @@ class Coturn {
 
         $transportsql="";
 
-        //if no praram set use default list 
+        //if no praram set use default list
         if( isset($transports) ){
              $transportsarray=explode(",",$transports);
         } else {
              $transportsarray=explode(",",DEFAULTTRANSPORTLIST);
-        } 
-       
+        }
+      
         $i=0;
         $transportsql.="and (";
         foreach($transportsarray as $transport) {
@@ -349,7 +348,6 @@ class Coturn {
             }
         }
         $transportsql.=")";
-        error_log($transportsql);    
 
 
          //ip version
@@ -357,13 +355,13 @@ class Coturn {
 
         $ipversionsql="";
 
-        //if no praram set use default list 
+        //if no praram set use default list
         if( isset($ipversions) ){
              $ipversionsarray=explode(",",$ipversions);
         } else {
              $ipversionsarray=explode(",",DEFAULTIPVERSIONLIST);
-        } 
-       
+        }
+      
         $i=0;
         $ipversionsql.="and (";
          foreach($ipversionsarray as $ipversion) {
@@ -384,20 +382,19 @@ class Coturn {
             }
         }
         $ipversionsql.=")";
-        error_log($ipversionsql);    
 
- 
+
         //uri schema param
         $urischemas=$app->request->params('uri_schema');
 
         $urischemassql="";
-         //if no praram set use default list 
+         //if no praram set use default list
         if(isset($urischemas)){
             $urischemasarray=explode(",",$urischemas);
         } else {
             $urischemasarray=explode(",",DEFAULTURISCHEMALIST);
          }
-        
+       
          $i=0;
          $urischemassql.="and (";
           foreach($urischemasarray as $uri_schema) {
@@ -418,9 +415,8 @@ class Coturn {
              }
          }
          $urischemassql.=")";
-         error_log($urischemassql);    
-
-        $sth2 = $db->prepare("SELECT ip,ipv6,port,protocol,uri_schema FROM ip left join service on ip.id=service.ip_id WHERE server_id='".$server_id."'".$urischemassql.$ipversionsql.$transportsql." ORDER BY ip.preference,service.preference");
+         $sql="SELECT ip,ipv6,port,protocol,uri_schema FROM ip left join service on ip.id=service.ip_id WHERE server_id='".$server_id."'".$urischemassql.$ipversionsql.$transportsql." ORDER BY ip.preference,service.preference";
+        $sth2 = $db->prepare($sql);
         $sth2->execute();
         $result2 = $sth2->fetchAll(PDO::FETCH_ASSOC);
         foreach ($result2 as $row2 => $columns2) {

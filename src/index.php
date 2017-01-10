@@ -2,14 +2,14 @@
 
 /**
  * @SWG\Swagger(
- *     basePath="/restapi",
- *     host="brain.lab.vvc.niif.hu",
+ *     basePath="/",
+ *     host="api.turn.geant.org",
  *     schemes={"https"},
  *     @SWG\Info(
  *         version="1.0",
  *         title="STUN TURN REST API",
  *         description="NIIF Intitute STUN TURN REST API pilot",
- *         @SWG\Contact(name="Mihály MÉSZÁROS", url="https://brain.lab.vvc.niif.hu"),
+ *         @SWG\Contact(name="Mihály MÉSZÁROS", url="https://api.turn.geant.org"),
  *     ),
  *     @SWG\Tag(
  *       name="rest api",

@@ -2,7 +2,7 @@
 
 class Db {
   public static function Connection($dbname){
-    $dbhost="localhost";
+    $dbhost="db.turn.geant.org";
     $dbuser="api";
     $dbpass="secret";
       

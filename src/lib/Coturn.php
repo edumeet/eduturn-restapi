@@ -23,7 +23,7 @@ class Coturn {
      *         maximum=25
      *     ),
      *     @SWG\Parameter(
-     *         description="realm, the domain of the shared secret, default=lab.vvc.niif.hu",
+     *         description="realm, the domain of the shared secret, default=turn.geant.org",
      *         in="query",
      *         name="realm",
      *         required=false,
@@ -103,7 +103,7 @@ class Coturn {
      *         maximum=25
      *     ),
      *     @SWG\Parameter(
-     *         description="realm, the domain of the shared secret, default=lab.vvc.niif.hu",
+     *         description="realm, the domain of the shared secret, default=turn.geant.org",
      *         in="query",
      *         name="realm",
      *         required=false,
@@ -172,7 +172,7 @@ class Coturn {
       $app = \Slim\Slim::getInstance();
 
       //default realm
-      $realm="lab.vvc.niif.hu";
+      $realm="turn.geant.org";
 
       try {
           $servercount=$app->request->params('servercount');
